@@ -1,0 +1,110 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum RideStatus {
+  requested
+  driver_assigned
+  driver_en_route
+  arrived
+  in_progress
+  completed
+  cancelled
+  no_drivers
+}
+
+enum PaymentMethod {
+  cash
+  card
+  wallet
+}
+
+enum DriverResponseStatus {
+  pending
+  accepted
+  declined
+  expired
+}
+
+model Zone {
+  id          String   @id @default(uuid())
+  name        String
+  latitude    Float
+  longitude   Float
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  pickupRides  Ride[] @relation("PickupZone")
+  dropoffRides Ride[] @relation("DropoffZone")
+  drivers      Driver[] @relation("DriverLastKnownZone")
+}
+
+model Rider {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String
+  phone     String?
+  pushToken String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  rides Ride[]
+}
+
+model Driver {
+  id             String   @id @default(uuid())
+  email          String   @unique
+  name           String
+  phone          String?
+  pushToken      String?
+  isOnline       Boolean  @default(false)
+  lastKnownZoneId String?
+  currentRideId  String?  @unique
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  lastKnownZone  Zone?   @relation("DriverLastKnownZone", fields: [lastKnownZoneId], references: [id])
+  currentRide    Ride?   @relation("CurrentDriverRide", fields: [currentRideId], references: [id])
+  rideRequests   RideDriverRequest[]
+}
+
+model Ride {
+  id              String        @id @default(uuid())
+  riderId         String
+  pickupZoneId    String
+  dropoffZoneId   String
+  paymentMethod   PaymentMethod
+  status          RideStatus    @default(requested)
+  assignedDriverId String?
+  driversAttempted Int          @default(0)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  rider           Rider         @relation(fields: [riderId], references: [id])
+  pickupZone      Zone          @relation("PickupZone", fields: [pickupZoneId], references: [id])
+  dropoffZone     Zone          @relation("DropoffZone", fields: [dropoffZoneId], references: [id])
+  assignedDriver  Driver?       @relation("AssignedDriverRide", fields: [assignedDriverId], references: [id])
+  currentDriver   Driver?       @relation("CurrentDriverRide")
+  driverRequests  RideDriverRequest[]
+}
+
+model RideDriverRequest {
+  id        String               @id @default(uuid())
+  rideId    String
+  driverId  String
+  status    DriverResponseStatus @default(pending)
+  expiresAt DateTime
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+
+  ride   Ride   @relation(fields: [rideId], references: [id])
+  driver Driver @relation(fields: [driverId], references: [id])
+
+  @@unique([rideId, driverId])
+  @@index([rideId, status])
+}
