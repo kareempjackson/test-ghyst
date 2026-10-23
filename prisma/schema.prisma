@@ -1,0 +1,91 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  RIDER
+  DRIVER
+  ADMIN
+}
+
+enum RideStatus {
+  REQUESTED
+  ACCEPTED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  phone     String?  @unique
+  firstName String   @map("first_name")
+  lastName  String   @map("last_name")
+  role      UserRole @default(RIDER)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  driverProfile DriverProfile?
+  ridesAsRider  Ride[]         @relation("RiderRides")
+  ridesAsDriver Ride[]         @relation("DriverRides")
+
+  @@map("users")
+}
+
+model DriverProfile {
+  id              String   @id @default(uuid())
+  userId          String   @unique @map("user_id")
+  licenseNumber   String   @map("license_number")
+  vehicleMake     String   @map("vehicle_make")
+  vehicleModel    String   @map("vehicle_model")
+  vehicleYear     Int      @map("vehicle_year")
+  vehiclePlate    String   @map("vehicle_plate")
+  vehicleColor    String   @map("vehicle_color")
+  isAvailable     Boolean  @default(false) @map("is_available")
+  isBlocked       Boolean  @default(false) @map("is_blocked")
+  averageRating   Float?   @map("average_rating")
+  totalRides      Int      @default(0) @map("total_rides")
+  totalRatings    Int      @default(0) @map("total_ratings")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("driver_profiles")
+}
+
+model Ride {
+  id              String     @id @default(uuid())
+  riderId         String     @map("rider_id")
+  driverId        String?    @map("driver_id")
+  status          RideStatus @default(REQUESTED)
+  pickupLat       Float      @map("pickup_lat")
+  pickupLng       Float      @map("pickup_lng")
+  pickupAddress   String     @map("pickup_address")
+  dropoffLat      Float      @map("dropoff_lat")
+  dropoffLng      Float      @map("dropoff_lng")
+  dropoffAddress  String     @map("dropoff_address")
+  estimatedFare   Float?     @map("estimated_fare")
+  actualFare      Float?     @map("actual_fare")
+  rating          Int?       @db.SmallInt
+  ratingComment   String?    @map("rating_comment")
+  ratedAt         DateTime?  @map("rated_at")
+  requestedAt     DateTime   @default(now()) @map("requested_at")
+  acceptedAt      DateTime?  @map("accepted_at")
+  startedAt       DateTime?  @map("started_at")
+  completedAt     DateTime?  @map("completed_at")
+  cancelledAt     DateTime?  @map("cancelled_at")
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
+
+  rider  User  @relation("RiderRides", fields: [riderId], references: [id])
+  driver User? @relation("DriverRides", fields: [driverId], references: [id])
+
+  @@map("rides")
+}
