@@ -1,0 +1,147 @@
+// Prisma schema for Caribbean Ride-Share Application
+// Supports users, drivers, zones, pricing, and rides
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [postgis]
+}
+
+// User roles in the system
+enum UserRole {
+  RIDER
+  DRIVER
+}
+
+// Driver verification status
+enum VerificationStatus {
+  PENDING
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+}
+
+// Ride status lifecycle
+enum RideStatus {
+  REQUESTED
+  ACCEPTED
+  DRIVER_ARRIVED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+// Payment methods available
+enum PaymentMethod {
+  CASH
+  CARD
+}
+
+/// Core user model for both riders and drivers
+model User {
+  id        String   @id @default(cuid())
+  phone     String   @unique
+  name      String
+  role      UserRole
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  driverProfile DriverProfile?
+  ridesAsRider  Ride[]         @relation("RiderRides")
+  ridesAsDriver Ride[]         @relation("DriverRides")
+
+  @@map("users")
+}
+
+/// Extended profile for users with DRIVER role
+model DriverProfile {
+  id                 String             @id @default(cuid())
+  userId             String             @unique @map("user_id")
+  licenseNumber      String             @map("license_number")
+  vehiclePlate       String             @map("vehicle_plate")
+  vehicleModel       String             @map("vehicle_model")
+  verificationStatus VerificationStatus @default(PENDING) @map("verification_status")
+  documents          Json               @default("{}")
+  createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @updatedAt @map("updated_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("driver_profiles")
+}
+
+/// Geographic zones for ride operations (Caribbean islands/regions)
+model Zone {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  pricingFrom    ZonePricing[] @relation("FromZone")
+  pricingTo      ZonePricing[] @relation("ToZone")
+  ridesAsPickup  Ride[]        @relation("PickupZone")
+  ridesAsDropoff Ride[]        @relation("DropoffZone")
+
+  @@map("zones")
+}
+
+/// Pricing matrix between zones
+model ZonePricing {
+  id         String   @id @default(cuid())
+  fromZoneId String   @map("from_zone_id")
+  toZoneId   String   @map("to_zone_id")
+  priceCents Int      @map("price_cents")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  fromZone Zone @relation("FromZone", fields: [fromZoneId], references: [id], onDelete: Cascade)
+  toZone   Zone @relation("ToZone", fields: [toZoneId], references: [id], onDelete: Cascade)
+
+  @@unique([fromZoneId, toZoneId])
+  @@map("zone_pricing")
+}
+
+/// Individual ride records with full lifecycle tracking
+model Ride {
+  id            String        @id @default(cuid())
+  riderId       String        @map("rider_id")
+  driverId      String?       @map("driver_id")
+  pickupZoneId  String        @map("pickup_zone_id")
+  dropoffZoneId String        @map("dropoff_zone_id")
+  status        RideStatus    @default(REQUESTED)
+  fareCents     Int?          @map("fare_cents")
+  paymentMethod PaymentMethod @default(CASH) @map("payment_method")
+  rating        Int?          @db.SmallInt
+
+  // Timestamp tracking for each status transition
+  requestedAt     DateTime  @default(now()) @map("requested_at")
+  acceptedAt      DateTime? @map("accepted_at")
+  driverArrivedAt DateTime? @map("driver_arrived_at")
+  startedAt       DateTime? @map("started_at")
+  completedAt     DateTime? @map("completed_at")
+  cancelledAt     DateTime? @map("cancelled_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  rider       User @relation("RiderRides", fields: [riderId], references: [id], onDelete: Cascade)
+  driver      User? @relation("DriverRides", fields: [driverId], references: [id], onDelete: SetNull)
+  pickupZone  Zone @relation("PickupZone", fields: [pickupZoneId], references: [id])
+  dropoffZone Zone @relation("DropoffZone", fields: [dropoffZoneId], references: [id])
+
+  @@index([riderId])
+  @@index([driverId])
+  @@index([status])
+  @@index([requestedAt])
+  @@map("rides")
+}
