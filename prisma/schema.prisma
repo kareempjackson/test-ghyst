@@ -1,0 +1,83 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String         @id @default(uuid())
+  email         String         @unique
+  phone         String?        @unique
+  firstName     String?
+  lastName      String?
+  role          UserRole       @default(RIDER)
+  fcmTokens     FcmToken[]
+  notifications Notification[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+model FcmToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  platform  Platform
+  isValid   Boolean  @default(true)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([token])
+}
+
+model Notification {
+  id        String             @id @default(uuid())
+  userId    String
+  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  title     String
+  body      String
+  data      Json?
+  status    NotificationStatus @default(PENDING)
+  sentAt    DateTime?
+  errorMsg  String?
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  @@index([userId])
+  @@index([type])
+  @@index([status])
+}
+
+enum UserRole {
+  RIDER
+  DRIVER
+  ADMIN
+}
+
+enum Platform {
+  IOS
+  ANDROID
+  WEB
+}
+
+enum NotificationType {
+  RIDE_REQUESTED
+  RIDE_ACCEPTED
+  DRIVER_ARRIVING
+  RIDE_STARTED
+  RIDE_COMPLETED
+  RIDE_CANCELLED
+  GENERAL
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+  DELIVERED
+}
