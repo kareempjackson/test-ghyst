@@ -1,0 +1,106 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  RIDER
+  DRIVER
+}
+
+enum RideStatus {
+  REQUESTED
+  ACCEPTED
+  DRIVER_ARRIVED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+}
+
+enum PaymentStatus {
+  PENDING
+  CAPTURED
+  FAILED
+  REFUNDED
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  phone         String    @unique
+  firstName     String
+  lastName      String
+  role          UserRole
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  ridesAsRider  Ride[]    @relation("RiderRides")
+  ridesAsDriver Ride[]    @relation("DriverRides")
+  driverProfile DriverProfile?
+}
+
+model DriverProfile {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id])
+  vehicleMake     String
+  vehicleModel    String
+  vehicleYear     Int
+  vehicleColor    String
+  licensePlate    String
+  isAvailable     Boolean  @default(false)
+  currentLat      Float?
+  currentLng      Float?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Ride {
+  id                  String        @id @default(cuid())
+  riderId             String
+  rider               User          @relation("RiderRides", fields: [riderId], references: [id])
+  driverId            String?
+  driver              User?         @relation("DriverRides", fields: [driverId], references: [id])
+  
+  status              RideStatus    @default(REQUESTED)
+  
+  pickupLat           Float
+  pickupLng           Float
+  pickupAddress       String
+  dropoffLat          Float
+  dropoffLng          Float
+  dropoffAddress      String
+  
+  estimatedFare       Float
+  actualFare          Float?
+  distanceKm          Float?
+  
+  paymentMethod       PaymentMethod @default(CASH)
+  paymentStatus       PaymentStatus @default(PENDING)
+  paymentIntentId     String?
+  
+  requestedAt         DateTime      @default(now())
+  acceptedAt          DateTime?
+  driverArrivedAt     DateTime?
+  startedAt           DateTime?
+  completedAt         DateTime?
+  cancelledAt         DateTime?
+  cancellationReason  String?
+  cancelledBy         String?
+  
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  @@index([riderId])
+  @@index([driverId])
+  @@index([status])
+}
