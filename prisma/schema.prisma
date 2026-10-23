@@ -1,0 +1,68 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum PaymentStatus {
+  pending
+  captured
+  failed
+  cash
+}
+
+enum PaymentMethod {
+  card
+  cash
+}
+
+enum RideStatus {
+  requested
+  accepted
+  in_progress
+  completed
+  cancelled
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  phone     String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  
+  ridesAsRider  Ride[] @relation("RiderRides")
+  ridesAsDriver Ride[] @relation("DriverRides")
+
+  @@map("users")
+}
+
+model Ride {
+  id                    String        @id @default(cuid())
+  riderId               String        @map("rider_id")
+  driverId              String?       @map("driver_id")
+  status                RideStatus    @default(requested)
+  pickupLat             Float         @map("pickup_lat")
+  pickupLng             Float         @map("pickup_lng")
+  pickupAddress         String?       @map("pickup_address")
+  dropoffLat            Float         @map("dropoff_lat")
+  dropoffLng            Float         @map("dropoff_lng")
+  dropoffAddress        String?       @map("dropoff_address")
+  paymentMethod         PaymentMethod @default(cash) @map("payment_method")
+  paymentStatus         PaymentStatus @default(pending) @map("payment_status")
+  stripePaymentIntentId String?       @map("stripe_payment_intent_id")
+  amountCents           Int?          @map("amount_cents")
+  currency              String?       @default("usd")
+  createdAt             DateTime      @default(now()) @map("created_at")
+  updatedAt             DateTime      @updatedAt @map("updated_at")
+
+  rider  User  @relation("RiderRides", fields: [riderId], references: [id])
+  driver User? @relation("DriverRides", fields: [driverId], references: [id])
+
+  @@index([stripePaymentIntentId], map: "rides_stripe_payment_intent_id_idx")
+  @@map("rides")
+}
